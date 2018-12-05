@@ -1,0 +1,6 @@
+class ExceptionExample
+{ 
+
+
+
+}//class
