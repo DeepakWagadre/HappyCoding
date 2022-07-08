@@ -1,6 +1,0 @@
-Command Design Pattern
-------------------------------
-
-
-Command Design Pattern encapsulates an Object as an Request, thereby letting us parameterize other objects with different requests
-and support undoable operations.
