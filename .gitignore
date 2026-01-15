@@ -1,0 +1,91 @@
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Backend (Java/Maven)
+backend/target/
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+*.class
+*.jar
+*.war
+*.ear
+.classpath
+.project
+.settings/
+
+# AI Agents (Python)
+ai-agents/__pycache__/
+ai-agents/*.py[cod]
+ai-agents/*$py.class
+ai-agents/.pytest_cache/
+ai-agents/.venv/
+ai-agents/venv/
+ai-agents/.env
+ai-agents/*.egg-info/
+ai-agents/dist/
+ai-agents/build/
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.vercel
+frontend/.turbo
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+
+# Docker
+docker-compose.override.yml
+*.pid
+*.seed
+*.pid.lock
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/postgres/
+data/elasticsearch/
+data/redis/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS
+Thumbs.db
+
+# Coverage
+coverage/
+*.lcov
+.nyc_output
+
+# Testing
+.pytest_cache/
+htmlcov/
+
+# Build artifacts
+dist/
+build/

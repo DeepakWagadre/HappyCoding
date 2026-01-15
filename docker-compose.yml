@@ -1,0 +1,229 @@
+version: '3.8'
+
+services:
+  # =============================================================================
+  # Database Layer
+  # =============================================================================
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: property-ai-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-propertyai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-propertyai_secret_2024}
+      POSTGRES_DB: ${POSTGRES_DB:-bangalore_properties}
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-100}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/main/resources/data/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-propertyai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - property-ai-network
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: property-ai-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - cluster.name=${ELASTICSEARCH_CLUSTER_NAME:-property-search-cluster}
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - property-ai-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: property-ai-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_secret_2024} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - property-ai-network
+    restart: unless-stopped
+
+  # =============================================================================
+  # AI Agent Layer (Python)
+  # =============================================================================
+  
+  ai-agents:
+    build:
+      context: ./ai-agents
+      dockerfile: Dockerfile
+    container_name: property-ai-agents
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_BASE=${OPENAI_API_BASE}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - OPENAI_TEMPERATURE=${OPENAI_TEMPERATURE:-0.1}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-propertyai}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-propertyai_secret_2024}
+      - POSTGRES_DB=${POSTGRES_DB:-bangalore_properties}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis_secret_2024}
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - PINECONE_API_KEY=${PINECONE_API_KEY:-}
+      - USE_PINECONE=${USE_PINECONE:-false}
+      - PYTHON_ENV=${PYTHON_ENV:-development}
+      - LOG_LEVEL=${PYTHON_LOG_LEVEL:-INFO}
+      - AGENT_TIMEOUT_SECONDS=${AGENT_TIMEOUT_SECONDS:-30}
+      - MAX_PROPERTIES_TO_ANALYZE=${MAX_PROPERTIES_TO_ANALYZE:-50}
+    ports:
+      - "${AI_AGENT_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - property-ai-network
+    restart: unless-stopped
+    volumes:
+      - ./ai-agents/src:/app/src:ro
+
+  # =============================================================================
+  # Backend Layer (Java Spring Boot)
+  # =============================================================================
+  
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: property-ai-backend
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-local}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-bangalore_properties}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-propertyai}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-propertyai_secret_2024}
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD:-redis_secret_2024}
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - ELASTICSEARCH_URIS=http://elasticsearch:9200
+      - AI_AGENT_URL=http://ai-agents:8000
+      - USE_VIRTUAL_THREADS=${USE_VIRTUAL_THREADS:-true}
+      - LOG_LEVEL=${SPRING_LOG_LEVEL:-INFO}
+      - ENABLE_CACHING=${ENABLE_CACHING:-true}
+      - ENABLE_STREAMING=${ENABLE_STREAMING:-true}
+      - JWT_SECRET=${JWT_SECRET:-default-jwt-secret-change-in-production}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      - JAVA_TOOL_OPTIONS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      ai-agents:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - property-ai-network
+    restart: unless-stopped
+
+  # =============================================================================
+  # Frontend Layer (Next.js)
+  # =============================================================================
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_BACKEND_URL=http://localhost:${BACKEND_PORT:-8080}
+        - NEXT_PUBLIC_MAPBOX_TOKEN=${NEXT_PUBLIC_MAPBOX_TOKEN:-}
+    container_name: property-ai-frontend
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:${BACKEND_PORT:-8080}
+      - NEXT_PUBLIC_MAPBOX_TOKEN=${NEXT_PUBLIC_MAPBOX_TOKEN:-}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - property-ai-network
+    restart: unless-stopped
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - /app/node_modules
+      - /app/.next
+
+# =============================================================================
+# Networks
+# =============================================================================
+
+networks:
+  property-ai-network:
+    driver: bridge
+    name: property-ai-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+
+volumes:
+  postgres_data:
+    driver: local
+    name: property-ai-postgres-data
+  elasticsearch_data:
+    driver: local
+    name: property-ai-elasticsearch-data
+  redis_data:
+    driver: local
+    name: property-ai-redis-data

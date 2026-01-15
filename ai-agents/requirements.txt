@@ -1,0 +1,31 @@
+# AI Agent Service Dependencies
+# Python 3.11+
+
+# Web framework
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# OpenAI
+openai
+
+# LangChain
+langchain-core
+langchain
+langchain-openai
+
+# Database clients
+psycopg2-binary
+redis
+elasticsearch
+
+# Async
+aiohttp
+
+# Utilities
+python-dotenv
+
+# Testing
+pytest
+httpx

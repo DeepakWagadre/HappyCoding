@@ -1,0 +1,183 @@
+spring:
+  application:
+    name: property-ai-backend
+  
+  # Database Configuration
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/bangalore_properties}
+    username: ${SPRING_DATASOURCE_USERNAME:propertyai}
+    password: ${SPRING_DATASOURCE_PASSWORD:propertyai_secret_2024}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+    
+    # Data Initialization
+    sql:
+      init:
+        mode: always
+  
+  # JPA Configuration
+  jpa:
+    defer-datasource-initialization: true
+    hibernate:
+      ddl-auto: create
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: false
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+  
+  # Redis Configuration
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:redis_secret_2024}
+      database: ${REDIS_DB:0}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+    elasticsearch:
+      repositories:
+        enabled: true
+  
+  # Elasticsearch REST Client Configuration
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+    connection-timeout: 10s
+    socket-timeout: 30s
+  
+  # Thread Executor (Virtual Threads - Java 21 Loom)
+  threads:
+    virtual:
+      enabled: ${USE_VIRTUAL_THREADS:true}
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,application/javascript,application/json
+  http2:
+    enabled: true
+  shutdown: graceful
+
+# Elasticsearch Configuration
+elasticsearch:
+  uris: http://${ELASTICSEARCH_HOST:localhost}:${ELASTICSEARCH_PORT:9200}
+  host: ${ELASTICSEARCH_HOST:localhost}
+  port: ${ELASTICSEARCH_PORT:9200}
+  index:
+    name: bangalore_properties
+    
+# AI Agent Service Configuration
+ai-agent:
+  url: ${AI_AGENT_URL:http://localhost:8000}
+  timeout: ${AGENT_TIMEOUT_SECONDS:30}s
+  max-retries: 3
+
+# Application Configuration
+app:
+  cache:
+    enabled: ${ENABLE_CACHING:true}
+    ttl: 3600 # 1 hour in seconds
+  streaming:
+    enabled: ${ENABLE_STREAMING:true}
+  search:
+    max-results: ${MAX_PROPERTIES_TO_ANALYZE:50}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+# Security
+security:
+  jwt:
+    secret: ${JWT_SECRET:default-jwt-secret-change-in-production}
+    expiration: ${JWT_EXPIRATION_HOURS:24}
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  health:
+    redis:
+      enabled: true
+    db:
+      enabled: true
+
+# Logging Configuration
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+    com.propertyai: ${LOG_LEVEL:INFO}
+    org.springframework.web: WARN
+    org.hibernate: WARN
+    org.elasticsearch: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Springdoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+  show-actuator: true
+
+---
+# Local Profile
+spring:
+  config:
+    activate:
+      on-profile: local
+  jpa:
+    show-sql: true
+  
+logging:
+  level:
+    com.propertyai: DEBUG
+
+---
+# Production Profile
+spring:
+  config:
+    activate:
+      on-profile: production
+  jpa:
+    show-sql: false
+  datasource:
+    hikari:
+      maximum-pool-size: 50
+
+logging:
+  level:
+    root: WARN
+    com.propertyai: INFO
